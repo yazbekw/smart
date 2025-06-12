@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: crypto-trading-bot
+    pythonVersion: "3.12"
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: COINEX_API_KEY
+        value: your_api_key_here
+      - key: COINEX_API_SECRET
+        value: your_api_secret_here
+      - key: TRADING_SYMBOL
+        value: BTC/USDT
+      - key: INVESTMENT_AMOUNT
+        value: "9"
+      - key: PORT
+        value: "10000"
