@@ -23,7 +23,7 @@ exchange = ccxt.coinex({
 })
 
 # === تحميل النموذج ===
-model = load_model('yazbekw_model.keras')
+model = load_model('yazbekw.keras')
 
 # === حالة البوت ===
 bot_status = {
