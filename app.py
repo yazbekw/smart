@@ -212,11 +212,17 @@ print(f"Current working directory: {os.getcwd()}")
 print(f"Template folder exists: {os.path.exists('templates')}")
 print(f"Dashboard exists: {os.path.exists('templates/dashboard.html')}")
 
-# تأكد من أن Gunicorn يستخدم المنفذ الصحيح
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port)
-
+    # تهيئة أولية
+    get_balance()
+    if bot_status['running']:
+        trading_job()  # تنفيذ أول تحقق فوري
+    
+    print("🟢 البوت يعمل الآن. سيتم التحقق كل ساعة.")
+    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+    scheduler_thread.start()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+    
 # === تشغيل التطبيق ===
 if __name__ == '__main__':
     print("🟢 البوت يعمل الآن. سيتم التحقق كل ساعة.")
