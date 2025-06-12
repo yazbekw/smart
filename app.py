@@ -31,7 +31,7 @@ exchange = ccxt.coinex({
 
 # === تحميل النموذج ===
 try:
-    model = load_model('yazbek.keras')
+    model = load_model('yazbekw.keras')
     print("✅ تم تحميل النموذج بنجاح")
     bot_status['model_loaded'] = True
 except Exception as e:
