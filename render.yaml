@@ -9,6 +9,8 @@ services:
       - key: PORT
         value: 10000
     envVars:
+      - key: BOT_START_RUNNING
+        value: "true"
       - key: COINEX_API_KEY
         value: your_api_key_here
       - key: COINEX_API_SECRET
