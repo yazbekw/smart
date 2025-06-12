@@ -2,140 +2,198 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
+    <title>بوت تداول البيتكوين</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مراقبة بوت التداول</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"  rel="stylesheet">
     <style>
-        .profit-positive { color: green; }
-        .profit-negative { color: red; }
+        body { background-color: #f8f9fa; }
+        .trade-history { font-size: 0.9rem; }
+        .signal-box {
+            padding: 20px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
-    <div class="container mt-4">
-        <h1 class="text-center">مراقبة بوت التداول</h1>
-        
+    <div class="container py-4">
+        <h1 class="text-center mb-4">🤖 بوت تداول البيتكوين</h1>
+
+        <!-- حالة البوت -->
         <div class="card mb-4">
-            <div class="card-header">
-                <h5>حالة البوت</h5>
-            </div>
+            <div class="card-header">حالة البوت</div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-4">
-                        <p><strong>الحالة:</strong> 
-                            <span class="badge bg-{{ 'success' if status.running else 'danger' }}">
-                                {{ 'يعمل' if status.running else 'متوقف' }}
-                            </span>
-                        </p>
-                        <p><strong>آخر تحقق:</strong> {{ status.last_check or 'لم يتم بعد' }}</p>
-                    </div>
-                    <div class="col-md-4">
-                        <p><strong>زوج التداول:</strong> {{ symbol }}</p>
-                        <p><strong>مبلغ الاستثمار:</strong> {{ investment }} USDT</p>
-                    </div>
-                    <div class="col-md-4">
-                        {% if status.error %}
-                        <div class="alert alert-danger">
-                            <strong>خطأ:</strong> {{ status.error }}
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-                
-                <div class="mt-3">
-                    <a href="/start" class="btn btn-success me-2">تشغيل البوت</a>
-                    <a href="/stop" class="btn btn-danger me-2">إيقاف البوت</a>
-                    <a href="/force_buy" class="btn btn-primary me-2">شراء إجباري</a>
-                    <a href="/force_sell" class="btn btn-warning">بيع إجباري</a>
-                </div>
+                <p>الوضع الحالي:
+                    <span class="badge bg-{{ status.running ? 'success' : 'danger' }}">
+                        {{ 'نشط' if status.running else 'متوقف' }}
+                    </span>
+                </p>
+                {% if status.error %}
+                <div class="alert alert-danger">{{ status.error }}</div>
+                {% endif %}
+                <button id="toggleBotBtn" class="btn btn-lg btn-{{ status.running ? 'warning' : 'success' }} mt-2">
+                    {{ 'إيقاف البوت' if status.running else 'تشغيل البوت' }}
+                </button>
             </div>
         </div>
-        
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5>الرصيد الحالي</h5>
-                    </div>
-                    <div class="card-body">
-                        {% if status.balance %}
-                            <p><strong>USDT المتاح:</strong> {{ "%.2f"|format(status.balance.USDT) }}</p>
-                            <p><strong>{{ symbol.split('/')[0] }} المتاح:</strong> {{ "%.8f"|format(status.balance.coin) }}</p>
-                        {% else %}
-                            <p>لا توجد بيانات عن الرصيد</p>
-                        {% endif %}
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <div class="card-header">
-                        <h5>الصفقة النشطة</h5>
-                    </div>
-                    <div class="card-body">
-                        {% if status.active_trade %}
-                            <p><strong>النوع:</strong> {{ status.active_trade.type }}</p>
-                            <p><strong>الكمية:</strong> {{ "%.8f"|format(status.active_trade.amount) }}</p>
-                            <p><strong>السعر:</strong> {{ "%.2f"|format(status.active_trade.price) }}</p>
-                            <p><strong>الوقت:</strong> {{ status.active_trade.timestamp }}</p>
-                        {% else %}
-                            <p>لا توجد صفقة نشطة حالياً</p>
-                        {% endif %}
-                    </div>
-                </div>
+
+        <!-- التنبؤ الحالي -->
+        <div class="card mb-4">
+            <div class="card-header">التنبؤ الحالي</div>
+            <div class="card-body text-center">
+                <div id="signalBox" class="signal-box alert alert-info">جارٍ التحميل...</div>
+                <button id="predictBtn" class="btn btn-primary">طلب توقع جديد</button>
             </div>
-            
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5>سجل الصفقات</h5>
-                    </div>
-                    <div class="card-body">
-                        {% if status.trade_history %}
-                            <div class="table-responsive">
-                                <table class="table table-striped">
-                                    <thead>
-                                        <tr>
-                                            <th>النوع</th>
-                                            <th>الكمية</th>
-                                            <th>السعر</th>
-                                            <th>الربح</th>
-                                            <th>الوقت</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for trade in status.trade_history|reverse %}
-                                        <tr>
-                                            <td class="{{ 'text-success' if trade.type == 'BUY' else 'text-danger' }}">
-                                                {{ trade.type }}
-                                            </td>
-                                            <td>{{ "%.8f"|format(trade.amount) }}</td>
-                                            <td>{{ "%.2f"|format(trade.price) }}</td>
-                                            <td class="{{ 'profit-positive' if trade.profit > 0 else 'profit-negative' if trade.profit is defined and trade.profit < 0 else '' }}">
-                                                {% if trade.profit is defined %}
-                                                    {{ "%.2f"|format(trade.profit) }} USDT
-                                                {% else %}
-                                                    -
-                                                {% endif %}
-                                            </td>
-                                            <td>{{ trade.timestamp }}</td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        {% else %}
-                            <p>لا توجد صفقات مسجلة بعد</p>
-                        {% endif %}
-                    </div>
+        </div>
+
+        <!-- التداول اليدوي -->
+        <div class="card mb-4">
+            <div class="card-header">تداول يدوي</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="amountInput" class="form-label">الكمية (BTC)</label>
+                    <input type="number" step="any" id="amountInput" class="form-control" placeholder="مثال: 0.001">
                 </div>
+                <button id="buyBtn" class="btn btn-success me-2">شراء</button>
+                <button id="sellBtn" class="btn btn-danger">بيع</button>
+                <div id="manualTradeResult" class="mt-3"></div>
+            </div>
+        </div>
+
+        <!-- المعاملات السابقة -->
+        <div class="card">
+            <div class="card-header">المعاملات السابقة</div>
+            <div class="card-body p-0">
+                <table class="table table-striped table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>النوع</th>
+                            <th>الكمية</th>
+                            <th>السعر</th>
+                            <th>الوقت</th>
+                            <th>الربح</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if status.trade_history|length == 0 %}
+                        <tr><td colspan="5" class="text-center">لا توجد معاملات بعد</td></tr>
+                        {% else %}
+                        {% for trade in status.trade_history reversed %}
+                        <tr>
+                            <td>{{ trade.type }}</td>
+                            <td>{{ "%.6f"|format(trade.amount) }}</td>
+                            <td>${{ "%.2f"|format(trade.price) }}</td>
+                            <td>{{ trade.timestamp }}</td>
+                            <td>
+                                {% if trade.profit %}
+                                    {% set profit = "%.2f"|format(trade.profit) %}
+                                    {% if profit|float > 0 %}
+                                        <span class="text-success">+{{ profit }}$</span>
+                                    {% elif profit|float < 0 %}
+                                        <span class="text-danger">{{ profit }}$</span>
+                                    {% else %}
+                                        {{ profit }}$
+                                    {% endif %}
+                                {% else %}
+                                    ---
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script> 
+
+    <!-- JavaScript للتحكم في البوت -->
     <script>
-        setTimeout(function(){
-            location.reload();
-        }, 60000); // تحديث الصفحة كل دقيقة
+        const predictBtn = document.getElementById('predictBtn');
+        const signalBox = document.getElementById('signalBox');
+        const toggleBotBtn = document.getElementById('toggleBotBtn');
+        const buyBtn = document.getElementById('buyBtn');
+        const sellBtn = document.getElementById('sellBtn');
+        const amountInput = document.getElementById('amountInput');
+        const manualTradeResult = document.getElementById('manualTradeResult');
+
+        // الحصول على التوقع
+        function getPrediction() {
+            fetch('/predict')
+                .then(res => res.json())
+                .then(data => {
+                    let text = data.message || 'لا يوجد توقع';
+                    let cls = 'alert-info';
+
+                    if (data.signal === 1) cls = 'alert-success';
+                    else if (data.signal === 0) cls = 'alert-danger';
+
+                    signalBox.className = `signal-box ${cls}`;
+                    signalBox.textContent = text;
+                })
+                .catch(err => {
+                    signalBox.className = 'signal-box alert-warning';
+                    signalBox.textContent = 'فشل في جلب التوقع';
+                    console.error(err);
+                });
+        }
+
+        // تشغيل أو إيقاف البوت
+        toggleBotBtn.addEventListener('click', () => {
+            const action = status.running ? 'stop' : 'start';
+            fetch(`/${action}`, {
+                method: 'GET'
+            }).then(res => res.json())
+              .then(data => {
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert('فشل في تحديث حالة البوت');
+                }
+            });
+        });
+
+        // شراء يدوي
+        buyBtn.addEventListener('click', () => {
+            const amount = amountInput.value;
+            if (!amount || amount <= 0) {
+                alert('يرجى إدخال كمية صحيحة');
+                return;
+            }
+            sendManualTrade('buy', amount);
+        });
+
+        // بيع يدوي
+        sellBtn.addEventListener('click', () => {
+            const amount = amountInput.value;
+            if (!amount || amount <= 0) {
+                alert('يرجى إدخال كمية صحيحة');
+                return;
+            }
+            sendManualTrade('sell', amount);
+        });
+
+        function sendManualTrade(action, amount) {
+            fetch('/manual-trade', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, amount })
+            }).then(res => res.json())
+              .then(data => {
+                  manualTradeResult.innerHTML = `<div class="alert alert-${data.status === 'success' ? 'success' : 'danger'}">${data.message}</div>`;
+                  setTimeout(() => manualTradeResult.innerHTML = '', 3000);
+              });
+        }
+
+        // تفعيل عند التحميل
+        predictBtn.addEventListener('click', getPrediction);
+        window.onload = () => getPrediction();
     </script>
 </body>
 </html>
