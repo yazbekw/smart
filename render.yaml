@@ -2,12 +2,8 @@ services:
   - type: web
     name: crypto-trading-bot
     pythonVersion: "3.12"
-    buildCommand: |
-      pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
-    envVars:
-      - key: PORT
-        value: 10000
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
     envVars:
       - key: BOT_START_RUNNING
         value: "true"
