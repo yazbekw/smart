@@ -207,6 +207,10 @@ def run_scheduler():
         if bot_status['running']:
             schedule.run_pending()
         time.sleep(1)
+# تأكد من مسار القوالب
+print(f"Current working directory: {os.getcwd()}")
+print(f"Template folder exists: {os.path.exists('templates')}")
+print(f"Dashboard exists: {os.path.exists('templates/dashboard.html')}")
 
 # تأكد من أن Gunicorn يستخدم المنفذ الصحيح
 if __name__ == '__main__':
