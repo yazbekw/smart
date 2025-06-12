@@ -16,7 +16,6 @@ load_dotenv()
 app = Flask(__name__)
 
 # === إعدادات التداول ===
-SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'XRP/USDT', 'DOT/USDT']
 symbol = os.getenv('TRADING_SYMBOL', 'BTC/USDT')
 investment_usdt = float(os.getenv('INVESTMENT_AMOUNT', 9))
 
