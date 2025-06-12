@@ -4,11 +4,10 @@ import pandas as pd
 import time
 import schedule
 import threading
+import numpy as np
 from datetime import datetime
 from tensorflow.keras.models import load_model
 from flask import Flask, render_template
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # لإخفاء تحذيرات TensorFlow
 
 app = Flask(__name__)
 
@@ -22,21 +21,9 @@ exchange = ccxt.coinex({
     'secret': os.getenv('COINEX_API_SECRET'),
 })
 
-# === تحميل النموذج ===
-try:
-    model = load_model('yazbekw.keras')
-    print("✅ تم تحميل النموذج بنجاح")
-except Exception as e:
-    print(f"❌ خطأ في تحميل النموذج: {str(e)}")
-    bot_status['error'] = f"خطأ في تحميل النموذج: {str(e)}"
-    model = None
-    
-# === تحميل النموذج ===
-model = load_model('yazbekw.keras')
-
 # === حالة البوت ===
 bot_status = {
-    'running': os.getenv('BOT_START_RUNNING', 'false').lower() == 'true',
+    'running': os.getenv('BOT_START_RUNNING', 'true').lower() == 'true',
     'last_check': None,
     'active_trade': None,
     'trade_history': [],
@@ -50,6 +37,31 @@ bot_status = {
     }
 }
 
+# === تحميل النموذج ===
+try:
+    model = load_model('yazbekw.keras')
+    print("✅ تم تحميل النموذج بنجاح")
+    bot_status['model_loaded'] = True
+except Exception as e:
+    print(f"❌ خطأ في تحميل النموذج: {str(e)}")
+    bot_status['error'] = f"خطأ في تحميل النموذج: {str(e)}"
+    bot_status['model_loaded'] = False
+    model = None
+
+# === التحقق من صحة النموذج ===
+def validate_model():
+    if model is None:
+        bot_status['error'] = "النموذج غير محمل"
+        return False
+    
+    try:
+        test_data = np.random.rand(1, 50)
+        prediction = model.predict(test_data, verbose=0)
+        return True
+    except Exception as e:
+        bot_status['error'] = f"النموذج غير صالح: {str(e)}"
+        return False
+
 # === الحصول على الرصيد ===
 def get_balance():
     try:
@@ -58,6 +70,7 @@ def get_balance():
             'USDT': balance['USDT']['free'],
             'coin': balance[symbol.split('/')[0]]['free']
         }
+        bot_status['error'] = None
         return True
     except Exception as e:
         bot_status['error'] = f"Error fetching balance: {str(e)}"
@@ -69,6 +82,7 @@ def get_live_data():
         bars = exchange.fetch_ohlcv(symbol, timeframe='1h', limit=100)
         df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        bot_status['error'] = None
         return df
     except Exception as e:
         bot_status['error'] = f"Error fetching data: {str(e)}"
@@ -85,6 +99,9 @@ def prepare_features(df):
 
 # === التنبؤ بالإشارة ===
 def predict_signal():
+    if not bot_status['model_loaded']:
+        return None
+        
     df = get_live_data()
     if df is None:
         return None
@@ -96,6 +113,7 @@ def predict_signal():
     try:
         prediction = model.predict(X, verbose=0)
         signal = (prediction > 0.5).astype(int)[0][0]
+        bot_status['error'] = None
         return signal
     except Exception as e:
         bot_status['error'] = f"Prediction error: {str(e)}"
@@ -110,12 +128,10 @@ def execute_trade(signal):
         current_price = exchange.fetch_ticker(symbol)['last']
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # إذا كان هناك صفقة نشطة، لا ننفذ صفقة جديدة
         if bot_status['active_trade'] is not None:
             return
             
         if signal == 1:  # شراء
-            # التحقق من الرصيد قبل الشراء
             if not get_balance():
                 return
                 
@@ -136,11 +152,9 @@ def execute_trade(signal):
                 print(f"[BUY] {amount:.8f} {symbol.split('/')[0]} at ${current_price:.2f}")
         
         elif signal == 0:  # بيع
-            # التحقق من وجود صفقة شراء نشطة
             if bot_status['active_trade'] is None:
                 return
                 
-            # التحقق من الرصيد قبل البيع
             if not get_balance():
                 return
                 
@@ -168,16 +182,23 @@ def execute_trade(signal):
 
 # === المهمة الدورية ===
 def trading_job():
+    if not bot_status['running']:
+        return
+        
     bot_status['last_check'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print("جارٍ التحقق من السوق...")
     signal = predict_signal()
     execute_trade(signal)
-    get_balance()  # تحديث الرصيد بعد كل عملية
+    get_balance()
 
 # === جدولة المهام ===
 schedule.every().hour.at(":00").do(trading_job)
 
 # === واجهة الويب ===
+@app.route('/')
+def home():
+    return "🟢 البوت يعمل على Render"
+
 @app.route('/dashboard')
 def dashboard():
     return render_template('dashboard.html', 
@@ -185,13 +206,10 @@ def dashboard():
                          symbol=symbol,
                          investment=investment_usdt)
 
-@app.route('/')
-def home():
-    return "🟢 البوت يعمل على Render"
-
 @app.route('/start')
 def start_bot():
     bot_status['running'] = True
+    bot_status['error'] = None
     return "Bot started"
 
 @app.route('/stop')
@@ -211,30 +229,35 @@ def force_sell():
         execute_trade(0)
     return "Force sell executed" if bot_status['active_trade'] is None else "Cannot execute sell - no active trade"
 
+@app.route('/debug')
+def debug_info():
+    return {
+        'status': {
+            'running': bot_status['running'],
+            'model_loaded': bot_status.get('model_loaded', False),
+            'last_error': bot_status.get('error', None)
+        },
+        'environment': {
+            'api_key_set': os.getenv('COINEX_API_KEY') is not None,
+            'symbol': symbol,
+            'investment': investment_usdt
+        }
+    }
+
 def run_scheduler():
     while True:
-        if bot_status['running']:
-            schedule.run_pending()
+        schedule.run_pending()
         time.sleep(1)
-# تأكد من مسار القوالب
-print(f"Current working directory: {os.getcwd()}")
-print(f"Template folder exists: {os.path.exists('templates')}")
-print(f"Dashboard exists: {os.path.exists('templates/dashboard.html')}")
 
-if __name__ == '__main__':
-    # تهيئة أولية
-    get_balance()
-    if bot_status['running']:
-        trading_job()  # تنفيذ أول تحقق فوري
-    
-    print("🟢 البوت يعمل الآن. سيتم التحقق كل ساعة.")
-    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-    scheduler_thread.start()
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
-    
 # === تشغيل التطبيق ===
 if __name__ == '__main__':
-    print("🟢 البوت يعمل الآن. سيتم التحقق كل ساعة.")
-    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-    scheduler_thread.start()
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+    # التحقق الأولي
+    get_balance()
+    
+    if bot_status['model_loaded'] and validate_model():
+        print("🟢 البوت يعمل الآن. سيتم التحقق كل ساعة.")
+        scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+        scheduler_thread.start()
+        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+    else:
+        print("❌ لا يمكن بدء البوت بسبب مشكلة في النموذج أو الاتصال")
