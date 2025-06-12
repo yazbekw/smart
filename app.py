@@ -206,6 +206,11 @@ def run_scheduler():
             schedule.run_pending()
         time.sleep(1)
 
+# تأكد من أن Gunicorn يستخدم المنفذ الصحيح
+if __name__ != '__main__':
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
 # === تشغيل التطبيق ===
 if __name__ == '__main__':
     print("🟢 البوت يعمل الآن. سيتم التحقق كل ساعة.")
