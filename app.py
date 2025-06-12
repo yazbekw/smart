@@ -7,6 +7,8 @@ import threading
 from datetime import datetime
 from tensorflow.keras.models import load_model
 from flask import Flask, render_template
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # لإخفاء تحذيرات TensorFlow
 
 app = Flask(__name__)
 
