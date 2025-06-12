@@ -2,8 +2,12 @@ services:
   - type: web
     name: crypto-trading-bot
     pythonVersion: "3.12"
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    buildCommand: |
+      pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
+    envVars:
+      - key: PORT
+        value: 10000
     envVars:
       - key: COINEX_API_KEY
         value: your_api_key_here
